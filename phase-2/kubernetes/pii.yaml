@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phase2-pii
+  namespace: kong-stage2
+  labels:
+    app.kubernetes.io/name: phase2-pii
+    app.kubernetes.io/part-of: kong-stage2
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: phase2-pii
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: phase2-pii
+        app.kubernetes.io/part-of: kong-stage2
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pii
+          image: kong/ai-pii-service:v0.2.2-en
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: GUNICORN_WORKERS
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - >-
+                  import json, urllib.request;
+                  data=json.dumps({"text":"ready","anonymize":["all_and_credentials"],"options":{"redact_type":"placeholder"}}).encode();
+                  request=urllib.request.Request("http://127.0.0.1:8080/llm/v1/sanitize",data=data,headers={"Content-Type":"application/json"});
+                  urllib.request.urlopen(request,timeout=5).read()
+            periodSeconds: 10
+            timeoutSeconds: 6
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "1500m"
+              memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: phase2-pii
+  namespace: kong-stage2
+  labels:
+    app.kubernetes.io/name: phase2-pii
+    app.kubernetes.io/part-of: kong-stage2
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: phase2-pii
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

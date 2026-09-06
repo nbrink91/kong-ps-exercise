@@ -1,0 +1,33 @@
+# Copy to the phase's local CODEX_HOME as shown in README.md.
+model = "gpt-5.6-luna"
+model_provider = "kong"
+model_reasoning_effort = "low"
+sandbox_mode = "read-only"
+web_search = "disabled"
+
+[model_providers.kong]
+name = "Kong"
+base_url = "http://127.0.0.1:8001/openai/v1"
+wire_api = "responses"
+requires_openai_auth = false
+supports_websockets = false
+request_max_retries = 0
+stream_max_retries = 0
+
+[model_providers.kong.env_http_headers]
+apikey = "KONG_CLIENT_KEY"
+
+# This demo uses only the governed GitHub tool.
+[features]
+shell_tool = false
+apps = false
+plugins = false
+
+[mcp_servers.github]
+url = "http://127.0.0.1:8001/github-mcp"
+enabled = true
+enabled_tools = ["get_file_contents"]
+
+[mcp_servers.github.env_http_headers]
+Authorization = "GITHUB_AUTHORIZATION"
+apikey = "KONG_CLIENT_KEY"

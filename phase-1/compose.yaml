@@ -1,0 +1,73 @@
+name: kong-phase1
+
+services:
+  gateway:
+    image: kong/kong-gateway:3.15.0.5
+    container_name: kong-phase1-dp
+    restart: unless-stopped
+    depends_on:
+      pii:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      KONG_ROLE: data_plane
+      KONG_DATABASE: "off"
+      KONG_KONNECT_MODE: "on"
+      KONG_VITALS: "off"
+      KONG_ROUTER_FLAVOR: expressions
+      KONG_NGINX_WORKER_PROCESSES: "1"
+      KONG_CLUSTER_MTLS: pki
+      KONG_CLUSTER_CONTROL_PLANE: "${KONNECT_CONTROL_PLANE_HOST:?Set KONNECT_CONTROL_PLANE_HOST}:443"
+      KONG_CLUSTER_SERVER_NAME: "${KONNECT_CONTROL_PLANE_HOST:?Set KONNECT_CONTROL_PLANE_HOST}"
+      KONG_CLUSTER_TELEMETRY_ENDPOINT: "${KONNECT_TELEMETRY_HOST:?Set KONNECT_TELEMETRY_HOST}:443"
+      KONG_CLUSTER_TELEMETRY_SERVER_NAME: "${KONNECT_TELEMETRY_HOST:?Set KONNECT_TELEMETRY_HOST}"
+      KONG_LUA_SSL_TRUSTED_CERTIFICATE: system
+      KONG_CLUSTER_CERT: /run/secrets/kong_cluster_cert
+      KONG_CLUSTER_CERT_KEY: /run/secrets/kong_cluster_cert_key
+    secrets:
+      - source: kong_cluster_cert
+        target: kong_cluster_cert
+        uid: "1001"
+        gid: "1001"
+        mode: 0440
+      - source: kong_cluster_cert_key
+        target: kong_cluster_cert_key
+        uid: "1001"
+        gid: "1001"
+        mode: 0400
+    healthcheck:
+      test: ["CMD-SHELL", "kong-health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  pii:
+    image: kong/ai-pii-service:v0.2.2-en
+    container_name: kong-phase1-pii
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      GUNICORN_WORKERS: "1"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json, urllib.request;
+          data=json.dumps({"text":"ready","anonymize":["all_and_credentials"],"options":{"redact_type":"placeholder"}}).encode();
+          request=urllib.request.Request("http://127.0.0.1:8080/llm/v1/sanitize",data=data,headers={"Content-Type":"application/json"});
+          urllib.request.urlopen(request,timeout=5).read()
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+secrets:
+  kong_cluster_cert:
+    environment: KONG_CLUSTER_CERT
+  kong_cluster_cert_key:
+    environment: KONG_CLUSTER_CERT_KEY

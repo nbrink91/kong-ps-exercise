@@ -1,0 +1,80 @@
+# Final values for the Terraform-managed Konnect hybrid data plane.
+# Supply the four endpoint values from Terraform with --set-string as shown in README.md.
+
+deployment:
+  hostname: kong-phase2-dp
+  revisionHistoryLimit: 2
+
+image:
+  repository: kong/kong-gateway
+  tag: "3.15.0.5"
+  effectiveSemver: "3.15.0"
+  pullPolicy: IfNotPresent
+
+env:
+  role: data_plane
+  database: "off"
+  konnect_mode: "on"
+  vitals: "off"
+  router_flavor: expressions
+  nginx_worker_processes: "1"
+  cluster_mtls: pki
+  cluster_cert: /etc/secrets/kong-cluster-cert/tls.crt
+  cluster_cert_key: /etc/secrets/kong-cluster-cert/tls.key
+  lua_ssl_trusted_certificate: system
+  dns_stale_ttl: "3600"
+  proxy_access_log: /dev/stdout
+  proxy_error_log: /dev/stderr
+  # cluster_control_plane, cluster_server_name, cluster_telemetry_endpoint,
+  # and cluster_telemetry_server_name are supplied at install time.
+
+secretVolumes:
+  - kong-cluster-cert
+
+admin:
+  enabled: false
+  http:
+    enabled: false
+  tls:
+    enabled: false
+
+manager:
+  enabled: false
+  http:
+    enabled: false
+  tls:
+    enabled: false
+
+portal:
+  enabled: false
+
+portalapi:
+  enabled: false
+
+cluster:
+  enabled: false
+
+clustertelemetry:
+  enabled: false
+
+proxy:
+  enabled: true
+  type: ClusterIP
+  tls:
+    enabled: false
+
+ingressController:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+  limits:
+    cpu: "1"
+    memory: 2Gi
